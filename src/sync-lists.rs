@@ -11,6 +11,7 @@ async fn main() -> Result<()> {
     client.add_relay("wss://relay.damus.io").await?;
     client.add_relay("wss://nostr.wine").await?;
     client.add_relay("wss://relay.primal.net").await?;
+    client.add_relay("wss://nostr.oxtr.dev").await?;
 
     client.connect().await;
 
