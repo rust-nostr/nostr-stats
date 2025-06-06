@@ -4,6 +4,8 @@ use nostr_sdk::prelude::*;
 use sqlx::migrate::MigrateDatabase;
 use sqlx::{Sqlite, SqlitePool};
 
+const IGNORED_RELAY_DOMAINS: &[&str] = &["localhost", "filter.nostr.wine"];
+
 async fn open_sqlite_pool(path: &str) -> Result<SqlitePool> {
     if !Sqlite::database_exists(path).await? {
         Sqlite::create_database(path).await?;
@@ -39,11 +41,33 @@ async fn main() -> Result<()> {
         relays.extend(
             nip65::extract_owned_relay_list(event)
                 .map(|(u, _)| u)
-                .filter(|u| !u.is_local_addr()),
+                // Filter local addr relays
+                .filter(|u| !u.is_local_addr())
+                // Filter ignored domains
+                .filter(|u| match u.domain() {
+                    // Skip the ignored relays
+                    Some(domain) => !IGNORED_RELAY_DOMAINS.contains(&domain),
+                    None => true,
+                }),
         );
     }
 
     println!("Extracted {} relays.", relays.len());
+
+    // Delete ignored relays
+    for relay_url in IGNORED_RELAY_DOMAINS {
+        let res = sqlx::query("DELETE FROM relays WHERE url LIKE ?")
+            .bind(format!("%://{}%", relay_url))
+            .execute(&pool)
+            .await?;
+
+        if res.rows_affected() > 0 {
+            println!(
+                "Deleted {} rows that match the following ignored domain: {relay_url}",
+                res.rows_affected()
+            );
+        }
+    }
 
     println!("Saving into SQLite stats database...");
 
