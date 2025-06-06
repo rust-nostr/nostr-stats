@@ -11,6 +11,7 @@ const PROXY_ADDR: SocketAddr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALH
 const DIRECT_CONNECTION_TIMEOUT: Duration = Duration::from_secs(10);
 const ONION_CONNECTION_TIMEOUT: Duration = Duration::from_secs(60);
 const MAX_CONCURRENT: usize = 50;
+const DATA_VALID_FOR: Duration = Duration::from_secs(60 * 60 * 24 * 7); // 7 days
 
 #[derive(FromRow)]
 struct RelayToCheckRow {
@@ -25,13 +26,13 @@ async fn main() -> Result<()> {
     // Open SQLite
     let pool = SqlitePool::connect("./stats.db").await?;
 
-    // Calculate the timestamp of 7 days ago
-    let now = Timestamp::now();
-    let seven_days_ago = now - Duration::from_secs(7 * 24 * 60 * 60);
+    // Calculate the timestamp since when the data should be updated
+    let now: Timestamp = Timestamp::now();
+    let from: Timestamp = now - DATA_VALID_FOR;
 
     let relays: Vec<RelayToCheckRow> =
         sqlx::query_as("SELECT id, url FROM relays WHERE last_check IS NULL OR last_check < ?")
-            .bind(seven_days_ago.as_u64() as i64)
+            .bind(from.as_u64() as i64)
             .fetch_all(&pool)
             .await?;
 
