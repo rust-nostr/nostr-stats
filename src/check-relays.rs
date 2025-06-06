@@ -57,7 +57,8 @@ async fn check_relays(db: &SqlitePool, relays: Vec<RelayToCheckRow>) -> Result<(
     let semaphore = Arc::new(Semaphore::new(MAX_CONCURRENT));
     let db = Arc::new(db.clone());
 
-    let mut handles = Vec::with_capacity(relays.len());
+    let total: usize = relays.len();
+    let mut handles = Vec::with_capacity(total);
 
     for (index, relay_row) in relays.into_iter().enumerate() {
         let client = client.clone();
@@ -71,35 +72,11 @@ async fn check_relays(db: &SqlitePool, relays: Vec<RelayToCheckRow>) -> Result<(
 
             let url: String = relay_row.url;
 
-            println!("[{}/total] Checking relay: {}", index + 1, url);
+            println!("[{}/{total}] Checking relay: {url}", index + 1);
 
-            let now = Timestamp::now();
-
-            match check_relay_with_nostr(client, &url).await {
-                Ok(relay_info) => {
-                    sqlx::query(
-                        "UPDATE relays SET last_check = ?, nip11 = ?, negentropy = ? WHERE id = ?",
-                    )
-                    .bind(now.as_u64() as i64)
-                    .bind(relay_info.nip11)
-                    .bind(relay_info.supports_negentropy)
-                    .bind(relay_row.id)
-                    .execute(&*db)
-                    .await
-                    .unwrap();
-
-                    println!("✓ Successfully checked relay: {}", url);
-                }
-                Err(e) => {
-                    sqlx::query("UPDATE relays SET last_check = ? WHERE id = ?")
-                        .bind(now.as_u64() as i64)
-                        .bind(relay_row.id)
-                        .execute(&*db)
-                        .await
-                        .unwrap();
-
-                    println!("✗ Failed to check relay {}: {}", url, e);
-                }
+            match check_relay(db, client, relay_row.id, &url).await {
+                Ok(_) => println!("✓ Successfully checked relay: {url}"),
+                Err(e) => println!("✗ Failed to check relay {url}: {e}"),
             }
         });
 
@@ -116,49 +93,122 @@ async fn check_relays(db: &SqlitePool, relays: Vec<RelayToCheckRow>) -> Result<(
     Ok(())
 }
 
-#[derive(Debug)]
-struct RelayInfo {
-    nip11: Option<String>,
-    supports_negentropy: Option<bool>,
-}
-
-async fn check_relay_with_nostr(
-    client: Client,
-    url: &str,
-) -> Result<RelayInfo, Box<dyn std::error::Error + Send + Sync>> {
-    // Parse relay URL
-    let url = RelayUrl::parse(url)?;
-
-    client.add_relay(&url).await?;
-
-    let timeout = if url.is_onion() {
+fn get_timeout_for_relay_url(url: &RelayUrl) -> Duration {
+    if url.is_onion() {
         ONION_CONNECTION_TIMEOUT
     } else {
         DIRECT_CONNECTION_TIMEOUT
+    }
+}
+
+async fn check_relay(
+    db: Arc<SqlitePool>,
+    client: Client,
+    id: i64,
+    url: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let url = RelayUrl::parse(url)?;
+
+    // Initial check
+    match initial_relay_check(&client, &url).await {
+        Ok(relay) => {
+            // Set the relay to reachable
+            update_reachable_status_and_last_check(&db, id, true).await?;
+
+            // Check and update NIP11
+            check_and_update_nip11(&db, &relay, id).await?;
+
+            // Check and update negentropy
+            check_and_update_negentropy(&db, &relay, id).await?;
+        }
+        Err(e) => {
+            // Set the relay to unreachable
+            update_reachable_status_and_last_check(&db, id, false).await?;
+
+            // Propagate error
+            return Err(e);
+        }
     };
 
-    client.try_connect_relay(&url, timeout).await?;
+    // Remove the relay from the pool
+    client.remove_relay(url).await?;
 
-    let relay = client.relay(&url).await?;
+    Ok(())
+}
 
-    // Get NIP11 document
+// Add relay and check if can connect
+async fn initial_relay_check(
+    client: &Client,
+    url: &RelayUrl,
+) -> Result<Relay, Box<dyn std::error::Error + Send + Sync>> {
+    client.add_relay(url).await?;
+
+    let timeout: Duration = get_timeout_for_relay_url(url);
+
+    client.try_connect_relay(url, timeout).await?;
+
+    Ok(client.relay(url).await?)
+}
+
+/// Get the NIP11 document and update the database
+async fn check_and_update_nip11(
+    db: &SqlitePool,
+    relay: &Relay,
+    id: i64,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let proxy = match relay.connection_mode() {
         ConnectionMode::Direct => None,
         ConnectionMode::Proxy(proxy) => Some(*proxy),
     };
-    let document = RelayInformationDocument::get(url.clone().into(), proxy, timeout)
+    let timeout: Duration = get_timeout_for_relay_url(relay.url());
+
+    // Try to get the NIP11 document
+    let document = RelayInformationDocument::get(relay.url().clone().into(), proxy, timeout)
         .await
         .ok();
 
+    // Save into the db
+    sqlx::query("UPDATE relays SET nip11 = ? WHERE id = ?")
+        .bind(document.map(|d| serde_json::to_string(&d).unwrap()))
+        .bind(id)
+        .execute(db)
+        .await?;
+
+    Ok(())
+}
+
+async fn check_and_update_negentropy(
+    db: &SqlitePool,
+    relay: &Relay,
+    id: i64,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let filter = Filter::new().kind(Kind::Metadata).limit(0);
+
+    // Try to perform a sync
     let supports_negentropy: bool = relay.sync(filter, &SyncOptions::new()).await.is_ok();
 
-    let relay_info = RelayInfo {
-        nip11: document.map(|d| serde_json::to_string(&d).unwrap()),
-        supports_negentropy: Some(supports_negentropy),
-    };
+    // Save into the db
+    sqlx::query("UPDATE relays SET negentropy = ? WHERE id = ?")
+        .bind(supports_negentropy)
+        .bind(id)
+        .execute(db)
+        .await?;
 
-    client.remove_relay(url).await?;
+    Ok(())
+}
 
-    Ok(relay_info)
+async fn update_reachable_status_and_last_check(
+    db: &SqlitePool,
+    id: i64,
+    reachable: bool,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let now: Timestamp = Timestamp::now();
+
+    sqlx::query("UPDATE relays SET last_check = ?, reachable = ? WHERE id = ?")
+        .bind(now.as_u64() as i64)
+        .bind(reachable)
+        .bind(id)
+        .execute(db)
+        .await?;
+    Ok(())
 }
