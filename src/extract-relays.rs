@@ -50,7 +50,7 @@ async fn main() -> Result<()> {
     // Insert relays
     for relay_url in relays {
         sqlx::query("INSERT OR IGNORE INTO relays (url) VALUES (?)")
-            .bind(relay_url.as_str())
+            .bind(relay_url.as_str_without_trailing_slash())
             .execute(&pool)
             .await?;
     }
