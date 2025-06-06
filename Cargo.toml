@@ -16,6 +16,10 @@ path = "src/sync-lists.rs"
 name = "check-relays"
 path = "src/check-relays.rs"
 
+[[bin]]
+name = "read-stats"
+path = "src/read-stats.rs"
+
 [dependencies]
 nostr = { git = "https://github.com/rust-nostr/nostr", rev = "039b7b086f2f3bad90bc1def2748624e39e12b24", features = ["std", "nip11"] }
 nostr-sdk = { git = "https://github.com/rust-nostr/nostr", rev = "039b7b086f2f3bad90bc1def2748624e39e12b24", features = ["lmdb"] }
