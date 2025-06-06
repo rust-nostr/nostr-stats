@@ -161,9 +161,10 @@ async fn check_and_update_nip11(
         ConnectionMode::Proxy(proxy) => Some(*proxy),
     };
     let timeout: Duration = get_timeout_for_relay_url(relay.url());
+    let opts = Nip11GetOptions { proxy, timeout };
 
     // Try to get the NIP11 document
-    let document = RelayInformationDocument::get(relay.url().clone().into(), proxy, timeout)
+    let document = RelayInformationDocument::get(relay.url().clone().into(), opts)
         .await
         .ok();
 

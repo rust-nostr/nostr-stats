@@ -21,8 +21,8 @@ name = "read-stats"
 path = "src/read-stats.rs"
 
 [dependencies]
-nostr = { git = "https://github.com/rust-nostr/nostr", rev = "039b7b086f2f3bad90bc1def2748624e39e12b24", features = ["std", "nip11"] }
-nostr-sdk = { git = "https://github.com/rust-nostr/nostr", rev = "039b7b086f2f3bad90bc1def2748624e39e12b24", features = ["lmdb"] }
+nostr = { git = "https://github.com/rust-nostr/nostr", rev = "4096b9da00f18c3089f734b27ce1388616f3cb13", features = ["std", "nip11"] }
+nostr-sdk = { git = "https://github.com/rust-nostr/nostr", rev = "4096b9da00f18c3089f734b27ce1388616f3cb13", features = ["lmdb"] }
 sqlx = { version = "0.8.6", features = ["sqlite", "runtime-tokio"] }
 tokio = { version = "1.45.1", features = ["macros", "rt-multi-thread", "sync"] }
 tracing-subscriber = "0.3.19"
