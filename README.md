@@ -4,7 +4,7 @@
 
 ## Steps
 
-- Sync NIP65 relay lists locally: `cargo run --release --bin sync-lists`
-- Extract and deduplicate relays: `cargo run --release --bin extract-relays`
-- Check relays: `cargo run --release --bin check-relays` (this may take some hours to complete)
-- Read stats: `cargo run --release --bin read-stats`
+- Sync NIP65 relay lists locally: `make sync`
+- Extract and deduplicate relays: `make extract`
+- Check relays: `make check` (this may take some hours to complete)
+- Read stats: `make stats`
