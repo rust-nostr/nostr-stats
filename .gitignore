@@ -1,0 +1,12 @@
+# Rust
+/target
+
+# Data
+*.mdb
+*.db
+*.db-shm
+*.db-wal
+
+# IDEs
+.idea/
+.vscode/
