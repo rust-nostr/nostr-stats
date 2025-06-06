@@ -97,7 +97,7 @@ async fn query_relays(pool: &SqlitePool) -> Result<RelayStats> {
 
 fn print_stats(stats: RelayStats) {
     println!("=== Relay Statistics ===");
-    println!("Total relays in database: {}", stats.total_relays);
+    println!("Total known relays: {}", stats.total_relays);
     println!(
         "Checked relays: {}/{} ({:.1}%)",
         stats.checked_relays, stats.total_relays, stats.checked_percentage
@@ -108,9 +108,9 @@ fn print_stats(stats: RelayStats) {
     );
     println!();
 
-    println!("=== Negentropy Support ===");
+    println!("=== Negentropy Support (NIP77) ===");
     println!(
-        "Relays supporting negentropy: {}/{} ({:.1}%)",
+        "Total relays: {}/{} ({:.1}%)",
         stats.negentropy_supported, stats.reachable_relays, stats.negentropy_percentage
     );
     println!();
