@@ -28,7 +28,7 @@ Are ignored all the following relays:
 ```bash
 === Relay Statistics ===
 Total known relays: 5735
-Checked relays: 5735/5735 (100.0%)
+Progress: 5735/5735 (100.0%)
 Reachable relays: 1341/5735 (23.4%)
 
 === Negentropy Support (NIP77) ===

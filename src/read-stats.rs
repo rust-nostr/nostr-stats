@@ -99,7 +99,7 @@ fn print_stats(stats: RelayStats) {
     println!("=== Relay Statistics ===");
     println!("Total known relays: {}", stats.total_relays);
     println!(
-        "Checked relays: {}/{} ({:.1}%)",
+        "Progress: {}/{} ({:.1}%)",
         stats.checked_relays, stats.total_relays, stats.checked_percentage
     );
     println!(
